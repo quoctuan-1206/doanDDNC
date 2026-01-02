@@ -32,7 +32,7 @@ class ApiService {
           <p>Mã OTP của bạn:</p>
           <h1 style="color: #4CAF50; font-size: 48px; letter-spacing: 10px; text-align: center;">$otp</h1>
           <p>Mã này có hiệu lực trong 5 phút. Không chia sẻ với bất kỳ ai.</p>
-          <p>Trân trọng,<br>Auth App Team</p>
+          <p>Trân trọng,<br>ABC Team</p>
         </div>
       ''';
 
@@ -48,7 +48,7 @@ class ApiService {
     }
   }
 
-  // Verify OTP (demo: so sánh client-side)
+  // Verify OTP
   bool verifyOtp(String inputOtp, String realOtp) => inputOtp == realOtp;
   // Đăng ký - Hash mật khẩu trước khi gửi lên MockAPI
   Future<bool> register(
@@ -83,7 +83,6 @@ class ApiService {
 
   // Đăng nhập
   Future<User?> login(String username, String password) async {
-    // Lấy tất cả users vì MockAPI không hỗ trợ filter chính xác
     final res = await http.get(Uri.parse('${baseUrl}users'));
     if (res.statusCode == 200) {
       final List data = jsonDecode(res.body);

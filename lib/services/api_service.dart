@@ -1,24 +1,32 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
+
+import 'package:bcrypt/bcrypt.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:http/http.dart' as http;
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server/gmail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/user.dart';
-import 'package:bcrypt/bcrypt.dart';
 
 class ApiService {
+  // Gmail gửi OTP
   static const String senderEmail = 'nguyennquoctuann1122@gmail.com';
   static const String appPassword = 'dirlcglxnrmktjed';
 
+  // MockAPI base URL
   static const String baseUrl =
       'https://695dbd7e2556fd22f6764a66.mockapi.io/users';
-  // laptrinhdidongnangcao@gmail.com
-  // nc12345678zz
+
+  // Cloudinary cho upload avatar
+  static const String cloudinaryCloudName = 'dbbejdp8a';
+  static const String cloudinaryUploadPreset = 'flutter_avatar_upload';
 
   static final smtpServer = gmail(senderEmail, appPassword);
 
-  // Gửi OTP thật qua email
+  // Gửi OTP qua email
   Future<String> sendOtp(String toEmail) async {
     final otp = Random().nextInt(999999).toString().padLeft(6, '0');
 
@@ -30,12 +38,12 @@ class ApiService {
       ..text = 'Mã OTP của bạn là: $otp\nHiệu lực trong 5 phút.'
       ..html =
           '''
-        <div style="font-family: Arial; padding: 20px;">
+        <div style="font-family: Arial; padding: 20px; text-align: center;">
           <h2>Xác thực tài khoản</h2>
           <p>Mã OTP của bạn:</p>
-          <h1 style="color: #4CAF50; font-size: 48px; letter-spacing: 10px; text-align: center;">$otp</h1>
+          <h1 style="color: #4CAF50; font-size: 48px; letter-spacing: 10px;">$otp</h1>
           <p>Mã này có hiệu lực trong 5 phút. Không chia sẻ với bất kỳ ai.</p>
-          <p>Trân trọng,<br>ABC Team</p>
+          <p>Trân trọng,<br>Auth App Team</p>
         </div>
       ''';
 
@@ -51,125 +59,13 @@ class ApiService {
     }
   }
 
-  // Verify OTP
-  bool verifyOtp(String inputOtp, String realOtp) => inputOtp == realOtp;
-  // Đăng ký - Hash mật khẩu trước khi gửi lên MockAPI
-  Future<bool> register(
-    String email,
-    String username,
-    String password, {
-    String? fullName,
-    String? dateOfBirth,
-    String? phoneNumber,
-  }) async {
-    final hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-    final Map<String, dynamic> userData = {
-      'email': email,
-      'username': username,
-      'password': hashedPassword,
-    };
+  // So sánh OTP (demo client-side)
+  bool verifyOtp(String inputOtp, String realOtp) => inputOtp.trim() == realOtp;
 
-    if (fullName != null && fullName.isNotEmpty)
-      userData['fullName'] = fullName;
-    if (dateOfBirth != null && dateOfBirth.isNotEmpty)
-      userData['dateOfBirth'] = dateOfBirth;
-    if (phoneNumber != null && phoneNumber.isNotEmpty)
-      userData['phoneNumber'] = phoneNumber;
-
-    final res = await http.post(
-      Uri.parse('${baseUrl}users'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(userData),
-    );
-    return res.statusCode == 201;
-  }
-
-  // Đăng nhập
-  Future<User?> login(String username, String password) async {
-    final res = await http.get(Uri.parse('${baseUrl}users'));
-    if (res.statusCode == 200) {
-      final List data = jsonDecode(res.body);
-
-      // Tìm user có username khớp
-      final matchedUsers = data
-          .where((u) => u['username'] == username)
-          .toList();
-
-      if (matchedUsers.isNotEmpty) {
-        final storedHash = matchedUsers[0]['password'] as String;
-
-        // Kiểm tra mật khẩu người dùng nhập có khớp với hash lưu trữ không
-        if (BCrypt.checkpw(password, storedHash)) {
-          final user = User.fromJson(matchedUsers[0]);
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('userId', user.id);
-          return user;
-        }
-      }
-    }
-    return null;
-  }
-
-  // Đổi mật khẩu
-  Future<bool> changePassword(String userId, String newPassword) async {
-    final hashedNewPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-
-    final res = await http.put(
-      Uri.parse('${baseUrl}users/$userId'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'password': hashedNewPassword}),
-    );
-    return res.statusCode == 200;
-  }
-
-  // Cập nhật avatar (mock URL)
-  Future<bool> updateAvatar(String userId, String avatarUrl) async {
-    final res = await http.put(
-      Uri.parse('${baseUrl}users/$userId'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'avatar': avatarUrl}),
-    );
-    return res.statusCode == 200;
-  }
-
-  // Cập nhật thông tin cá nhân
-  Future<bool> updateProfile(
-    String userId, {
-    String? fullName,
-    String? dateOfBirth,
-    String? phoneNumber,
-  }) async {
-    final Map<String, dynamic> updateData = {};
-    if (fullName != null) updateData['fullName'] = fullName;
-    if (dateOfBirth != null) updateData['dateOfBirth'] = dateOfBirth;
-    if (phoneNumber != null) updateData['phoneNumber'] = phoneNumber;
-
-    final res = await http.put(
-      Uri.parse('${baseUrl}users/$userId'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(updateData),
-    );
-    return res.statusCode == 200;
-  }
-
-  // Lấy thông tin user hiện tại
-  Future<User?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('userId');
-    if (userId == null) return null;
-
-    final res = await http.get(Uri.parse('${baseUrl}users/$userId'));
-    if (res.statusCode == 200) {
-      return User.fromJson(jsonDecode(res.body));
-    }
-    return null;
-  }
-
+  // Kiểm tra username đã tồn tại chưa
   Future<bool> isUsernameTaken(String username) async {
     try {
-      final res = await http.get(
-        Uri.parse('${baseUrl}users?username=$username'),
-      );
+      final res = await http.get(Uri.parse('$baseUrl?username=$username'));
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
         return data.isNotEmpty;
@@ -179,5 +75,178 @@ class ApiService {
       print('Error checking username: $e');
       return false;
     }
+  }
+
+  // Đăng ký user (hash password + lưu thông tin bổ sung)
+  Future<bool> register({
+    required String email,
+    required String username,
+    required String password,
+    String? fullName,
+    String? dateOfBirth,
+    String? phoneNumber,
+  }) async {
+    final hashedPassword = BCrypt.hashpw(
+      password,
+      BCrypt.gensalt(logRounds: 10),
+    );
+
+    final body = {
+      'email': email.trim(),
+      'username': username.trim(),
+      'password': hashedPassword,
+      if (fullName != null && fullName.trim().isNotEmpty)
+        'fullName': fullName.trim(),
+      if (dateOfBirth != null && dateOfBirth.trim().isNotEmpty)
+        'dateOfBirth': dateOfBirth.trim(),
+      if (phoneNumber != null && phoneNumber.trim().isNotEmpty)
+        'phoneNumber': phoneNumber.trim(),
+    };
+
+    final res = await http.post(
+      Uri.parse(baseUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    return res.statusCode == 201;
+  }
+
+  // Đăng nhập (so sánh hash)
+  Future<User?> login(String username, String password) async {
+    final res = await http.get(Uri.parse('$baseUrl?username=$username'));
+    if (res.statusCode == 200) {
+      final List data = jsonDecode(res.body);
+      if (data.isNotEmpty) {
+        final storedHash = data[0]['password'] as String;
+        if (BCrypt.checkpw(password, storedHash)) {
+          final user = User.fromJson(data[0]);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('userId', user.id);
+          return user;
+        }
+      }
+    }
+    return null;
+  }
+
+  // Lấy thông tin user hiện tại từ MockAPI
+  Future<User?> getCurrentUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    if (userId == null) return null;
+
+    final res = await http.get(Uri.parse('$baseUrl/$userId'));
+    if (res.statusCode == 200) {
+      return User.fromJson(jsonDecode(res.body));
+    }
+    return null;
+  }
+
+  // Upload ảnh lên Cloudinary (unsigned)
+  Future<String?> uploadAvatar(File imageFile) async {
+    try {
+      print('Starting upload for file: ${imageFile.path}');
+      print('File exists: ${await imageFile.exists()}');
+
+      final cloudinary = CloudinaryPublic(
+        cloudinaryCloudName,
+        cloudinaryUploadPreset,
+        cache: false,
+      );
+
+      final response = await cloudinary.uploadFile(
+        CloudinaryFile.fromFile(
+          imageFile.path,
+          resourceType: CloudinaryResourceType.Image,
+        ),
+      );
+
+      final uploadedUrl = response.secureUrl;
+      print('Avatar uploaded to Cloudinary: $uploadedUrl');
+      return uploadedUrl;
+    } catch (e) {
+      print('Cloudinary upload error: $e');
+      // Trả về URL placeholder để test flow
+      print('Error details: ${e.toString()}');
+      if (e.toString().contains('400')) {
+        print('Bad request - check Cloudinary upload preset configuration');
+        print('Upload preset should be "unsigned" in Cloudinary dashboard');
+      }
+      return null;
+    }
+  }
+
+  // Cập nhật avatar: upload lên Cloudinary rồi lưu URL vào MockAPI
+  // Nếu Cloudinary thất bại, lưu base64 vào MockAPI
+  Future<bool> updateAvatar(String userId, File imageFile) async {
+    String avatarData;
+
+    // Thử upload lên Cloudinary trước
+    final cloudinaryUrl = await uploadAvatar(imageFile);
+
+    if (cloudinaryUrl != null) {
+      avatarData = cloudinaryUrl;
+    } else {
+      // Fallback: Convert to base64 and save directly
+      print('Falling back to base64 storage...');
+      final bytes = await imageFile.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      avatarData = 'data:image/jpeg;base64,$base64Image';
+      print('Image converted to base64, size: ${base64Image.length} chars');
+    }
+
+    final res = await http.put(
+      Uri.parse('$baseUrl/$userId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'avatar': avatarData}),
+    );
+
+    if (res.statusCode == 200) {
+      print('Avatar updated successfully in MockAPI');
+      return true;
+    } else {
+      print('Failed to update avatar in MockAPI: ${res.statusCode}');
+      return false;
+    }
+  }
+
+  // Cập nhật thông tin profile
+  Future<bool> updateProfile(
+    String userId, {
+    String? fullName,
+    String? dateOfBirth,
+    String? phoneNumber,
+  }) async {
+    final body = <String, dynamic>{};
+    if (fullName != null) body['fullName'] = fullName;
+    if (dateOfBirth != null) body['dateOfBirth'] = dateOfBirth;
+    if (phoneNumber != null) body['phoneNumber'] = phoneNumber;
+
+    if (body.isEmpty) return false;
+
+    final res = await http.put(
+      Uri.parse('$baseUrl/$userId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    return res.statusCode == 200;
+  }
+
+  // Đổi mật khẩu (hash mật khẩu mới)
+  Future<bool> changePassword(String userId, String newPassword) async {
+    final hashedNewPassword = BCrypt.hashpw(
+      newPassword,
+      BCrypt.gensalt(logRounds: 10),
+    );
+
+    final res = await http.put(
+      Uri.parse('$baseUrl/$userId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'password': hashedNewPassword}),
+    );
+
+    return res.statusCode == 200;
   }
 }

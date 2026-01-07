@@ -124,9 +124,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final success = await _api.register(
-        _emailCtrl.text.trim(),
-        username,
-        _passwordCtrl.text,
+        email: _emailCtrl.text.trim(),
+        username: username,
+        password: _passwordCtrl.text,
         fullName: _fullNameCtrl.text.trim().isEmpty
             ? null
             : _fullNameCtrl.text.trim(),

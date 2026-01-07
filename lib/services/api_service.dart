@@ -11,7 +11,10 @@ class ApiService {
   static const String senderEmail = 'nguyennquoctuann1122@gmail.com';
   static const String appPassword = 'dirlcglxnrmktjed';
 
-  static const String baseUrl = 'https://6957633bf7ea690182d1e524.mockapi.io/';
+  static const String baseUrl =
+      'https://695dbd7e2556fd22f6764a66.mockapi.io/users';
+  // laptrinhdidongnangcao@gmail.com
+  // nc12345678zz
 
   static final smtpServer = gmail(senderEmail, appPassword);
 
